@@ -1,0 +1,88 @@
+# Helm values for open-telemetry/opentelemetry-collector — GATEWAY mode.
+# Source: https://docs.dynatrace.com/docs/shortlink/otel-collector-deploy
+# ("Deploy as a gateway (Deployment)" tab). Used in step 8 of
+# docs/dynatrace-otel-auto-instrumentation.md.
+#
+# Requires the "dynatrace-otelcol-dt-api-credentials" secret created in step 5
+# (keys: DT_ENDPOINT, DT_API_TOKEN, DT_PLATFORM_TOKEN).
+
+mode: deployment
+
+image:
+  repository: ghcr.io/dynatrace/dynatrace-otel-collector/dynatrace-otel-collector
+  tag: 0.56.0
+
+command:
+  name: dynatrace-otel-collector
+
+extraEnvs:
+  - name: DT_API_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: dynatrace-otelcol-dt-api-credentials
+        key: DT_API_TOKEN
+  - name: DT_ENDPOINT
+    valueFrom:
+      secretKeyRef:
+        name: dynatrace-otelcol-dt-api-credentials
+        key: DT_ENDPOINT
+  - name: DT_PLATFORM_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: dynatrace-otelcol-dt-api-credentials
+        key: DT_PLATFORM_TOKEN
+
+resources:
+  limits:
+    memory: 512Mi
+
+alternateConfig:
+  extensions:
+    health_check:
+      endpoint: "${env:MY_POD_IP}:13133"
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: ${env:MY_POD_IP}:4317
+        http:
+          endpoint: ${env:MY_POD_IP}:4318
+    # Gateway pods aren't co-located with the workload, so file-based log tailing is disabled.
+    file_log: null
+  exporters:
+    otlp_http:
+      endpoint: "${env:DT_ENDPOINT}/api/v2/otlp"
+      headers:
+        Authorization: "Api-Token ${env:DT_API_TOKEN}"
+  service:
+    extensions: [health_check]
+    pipelines:
+      traces:
+        receivers: [otlp]
+        processors: []
+        exporters: [otlp_http]
+      metrics:
+        receivers: [otlp]
+        processors: []
+        exporters: [otlp_http]
+      logs:
+        receivers: [otlp]
+        processors: []
+        exporters: [otlp_http]
+    # Self-monitoring: https://docs.dynatrace.com/docs/ingest-from/opentelemetry/collector/self-monitoring
+    # DT_ENDPOINT is the bare tenant base URL; the API path is appended here rather than baked into the secret.
+    telemetry:
+      metrics:
+        # The self-monitoring dashboard relies on metrics at level "detailed".
+        level: detailed
+        readers:
+          - periodic:
+              interval: 60000
+              exporter:
+                otlp:
+                  protocol: http/protobuf
+                  temporality_preference: delta
+                  endpoint: "${env:DT_ENDPOINT}/api/v2/otlp/v1/metrics"
+                  headers:
+                    - name: Authorization
+                      value: "Bearer ${env:DT_PLATFORM_TOKEN}"

@@ -1,0 +1,71 @@
+# Overlay values — layer on top of helm/easytrade/values.yaml to enable OpenTelemetry
+# auto-instrumentation injection for each service. Apply with:
+#
+#   helm upgrade easytrade helm/easytrade \
+#     -f helm/easytrade/values.yaml \
+#     -f helm/easytrade/values-otel-instrumentation.yaml \
+#     --namespace easytrade
+#
+# See docs/dynatrace-otel-auto-instrumentation.md for the full setup this depends on
+# (OpenTelemetry Operator + Instrumentation CRs must already be installed in the
+# "dynatrace" namespace before these annotations take effect).
+
+accountservice:
+  podAnnotations:
+    instrumentation.opentelemetry.io/inject-java: "dynatrace/java-instrumentation"
+
+contentcreator:
+  podAnnotations:
+    instrumentation.opentelemetry.io/inject-java: "dynatrace/java-instrumentation"
+
+credit-card-order-service:
+  podAnnotations:
+    instrumentation.opentelemetry.io/inject-java: "dynatrace/java-instrumentation"
+
+engine:
+  podAnnotations:
+    instrumentation.opentelemetry.io/inject-java: "dynatrace/java-instrumentation"
+
+feature-flag-service:
+  podAnnotations:
+    instrumentation.opentelemetry.io/inject-java: "dynatrace/java-instrumentation"
+
+third-party-service:
+  podAnnotations:
+    instrumentation.opentelemetry.io/inject-java: "dynatrace/java-instrumentation"
+
+frontend:
+  podAnnotations:
+    instrumentation.opentelemetry.io/inject-nodejs: "dynatrace/nodejs-instrumentation"
+
+loadgen:
+  podAnnotations:
+    instrumentation.opentelemetry.io/inject-nodejs: "dynatrace/nodejs-instrumentation"
+
+offerservice:
+  podAnnotations:
+    instrumentation.opentelemetry.io/inject-nodejs: "dynatrace/nodejs-instrumentation"
+
+broker-service:
+  podAnnotations:
+    instrumentation.opentelemetry.io/inject-dotnet: "dynatrace/dotnet-instrumentation"
+
+loginservice:
+  podAnnotations:
+    instrumentation.opentelemetry.io/inject-dotnet: "dynatrace/dotnet-instrumentation"
+
+manager:
+  podAnnotations:
+    instrumentation.opentelemetry.io/inject-dotnet: "dynatrace/dotnet-instrumentation"
+
+aggregator-service:
+  podAnnotations:
+    instrumentation.opentelemetry.io/inject-go: "dynatrace/go-instrumentation"
+
+pricing-service:
+  podAnnotations:
+    instrumentation.opentelemetry.io/inject-go: "dynatrace/go-instrumentation"
+
+problem-operator:
+  podAnnotations:
+    instrumentation.opentelemetry.io/inject-go: "dynatrace/go-instrumentation"

@@ -1,0 +1,18 @@
+# Helm values for open-telemetry/opentelemetry-operator
+# Used in step 7 of docs/dynatrace-otel-auto-instrumentation.md
+
+manager:
+  # We manage the collector deployment ourselves (Dynatrace image) instead of letting
+  # the operator provision one from an OpenTelemetryCollector CR.
+  # The operator does not create a collector unless an OpenTelemetryCollector CR exists.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 100Mi
+    limits:
+      cpu: 200m
+      memory: 200Mi
+
+admissionWebhooks:
+  certManager:
+    enabled: true

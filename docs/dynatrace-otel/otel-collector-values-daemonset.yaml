@@ -1,0 +1,169 @@
+# Helm values for open-telemetry/opentelemetry-collector — AGENT (DaemonSet) mode.
+# Source: https://docs.dynatrace.com/docs/shortlink/otel-collector-deploy
+# ("Deploy as an agent (DaemonSet)" tab). Alternative to
+# otel-collector-values-gateway.yaml for step 8 of
+# docs/dynatrace-otel-auto-instrumentation.md — use this if you need one collector
+# per node for host-level enrichment/log tailing.
+#
+# Requires the "dynatrace-otelcol-dt-api-credentials" secret created in step 5
+# (keys: DT_ENDPOINT, DT_API_TOKEN, DT_PLATFORM_TOKEN).
+
+mode: daemonset
+
+image:
+  repository: ghcr.io/dynatrace/dynatrace-otel-collector/dynatrace-otel-collector
+  tag: 0.56.0
+
+command:
+  name: dynatrace-otel-collector
+
+presets:
+  kubernetesAttributes:
+    enabled: true
+
+rbac:
+  create: true
+
+extraEnvs:
+  - name: DT_API_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: dynatrace-otelcol-dt-api-credentials
+        key: DT_API_TOKEN
+  - name: DT_ENDPOINT
+    valueFrom:
+      secretKeyRef:
+        name: dynatrace-otelcol-dt-api-credentials
+        key: DT_ENDPOINT
+  - name: K8S_POD_IP
+    valueFrom:
+      fieldRef:
+        fieldPath: status.podIP
+#  - name: K8S_NODE_NAME
+#    valueFrom:
+#      fieldRef:
+#        fieldPath: spec.nodeName
+resources:
+  limits:
+    memory: 512Mi
+
+alternateConfig:
+  extensions:
+    health_check:
+      endpoint: "${env:MY_POD_IP}:13133"
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: ${env:MY_POD_IP}:4317
+        http:
+          endpoint: ${env:MY_POD_IP}:4318
+  processors:
+    k8sattributes:
+      auth_type: "serviceAccount"
+      passthrough: false
+      filter:
+        node_from_env_var: "K8S_NODE_NAME" # The chart typically provides this via DaemonSet envs
+      extract:
+        metadata:
+        - k8s.pod.name
+        - k8s.pod.uid
+        - k8s.pod.ip
+        - k8s.deployment.name
+        - k8s.replicaset.name
+        - k8s.statefulset.name
+        - k8s.daemonset.name
+        - k8s.job.name
+        - k8s.cronjob.name
+        - k8s.namespace.name
+        - k8s.node.name
+        - k8s.cluster.uid
+        - k8s.container.name
+        annotations:
+        - from: pod
+          key_regex: metadata.dynatrace.com/(.*)
+          tag_name: $$1
+      pod_association:
+      - sources:
+        - from: resource_attribute
+          name: k8s.pod.name
+        - from: resource_attribute
+          name: k8s.namespace.name
+      - sources:
+        - from: resource_attribute
+          name: k8s.pod.ip
+      - sources:
+        - from: resource_attribute
+          name: k8s.pod.uid
+      - sources:
+        - from: connection
+    transform:
+      error_mode: ignore
+      metric_statements:
+        - context: resource
+          statements:
+          - set(attributes["k8s.workload.kind"], "job") where IsString(attributes["k8s.job.name"])
+          - set(attributes["k8s.workload.name"], attributes["k8s.job.name"]) where IsString(attributes["k8s.job.name"])
+          - set(attributes["k8s.workload.kind"], "cronjob") where IsString(attributes["k8s.cronjob.name"])
+          - set(attributes["k8s.workload.name"], attributes["k8s.cronjob.name"]) where IsString(attributes["k8s.cronjob.name"])
+          - set(attributes["k8s.workload.kind"], "daemonset") where IsString(attributes["k8s.daemonset.name"])
+          - set(attributes["k8s.workload.name"], attributes["k8s.daemonset.name"]) where IsString(attributes["k8s.daemonset.name"])
+          - set(attributes["k8s.workload.kind"], "statefulset") where IsString(attributes["k8s.statefulset.name"])
+          - set(attributes["k8s.workload.name"], attributes["k8s.statefulset.name"]) where IsString(attributes["k8s.statefulset.name"])
+          - set(attributes["k8s.workload.kind"], "replicaset") where IsString(attributes["k8s.replicaset.name"])
+          - set(attributes["k8s.workload.name"], attributes["k8s.replicaset.name"]) where IsString(attributes["k8s.replicaset.name"])
+          - set(attributes["k8s.workload.kind"], "deployment") where IsString(attributes["k8s.deployment.name"])
+          - set(attributes["k8s.workload.name"], attributes["k8s.deployment.name"]) where IsString(attributes["k8s.deployment.name"])
+          # remove the delete statements if you want to preserve these attributes
+          - delete_key(attributes, "k8s.deployment.name")
+          - delete_key(attributes, "k8s.replicaset.name")
+          - delete_key(attributes, "k8s.statefulset.name")
+          - delete_key(attributes, "k8s.daemonset.name")
+          - delete_key(attributes, "k8s.cronjob.name")
+          - delete_key(attributes, "k8s.job.name")
+  exporters:
+    otlp_http:
+      endpoint: "${env:DT_ENDPOINT}"
+      headers:
+        Authorization: "Api-Token ${env:DT_API_TOKEN}"
+  service:
+    extensions: [health_check]
+    pipelines:
+      traces:
+        receivers: [otlp]
+        processors:
+          - k8sattributes
+          - transform
+        exporters: [otlp_http]
+      metrics:
+        receivers: [otlp]
+        processors:
+          - k8sattributes
+          - transform
+        exporters: [otlp_http]
+      logs:
+        receivers: [otlp]
+        processors:
+          - k8sattributes
+          - transform
+        exporters: [otlp_http]
+    # Self-monitoring: https://docs.dynatrace.com/docs/ingest-from/opentelemetry/collector/self-monitoring
+    # DT_ENDPOINT is the bare tenant base URL; the API path is appended here rather than baked into the secret.
+
+
+    telemetry:
+      metrics:
+        # The self-monitoring dashboard relies on metrics at level "detailed".
+        level: detailed
+        readers:
+          - periodic:
+              interval: 60000
+              timeout: 5000
+              exporter:
+                otlp:
+                  protocol: http/protobuf
+                  temporality_preference: delta
+                  endpoint: "${env:DT_ENDPOINT}/v1/metrics"
+                  headers:
+                    - name: Authorization
+                      value: "Api-Token ${env:DT_API_TOKEN}"

@@ -1,0 +1,29 @@
+# Instrumentation CR for Go services (aggregator-service, pricing-service, problem-operator).
+# Go auto-instrumentation is ALPHA upstream: it uses eBPF and requires the injected
+# init-container to run with elevated privileges (SYS_PTRACE) to attach to the target process.
+# Used in step 9 of docs/dynatrace-otel-auto-instrumentation.md
+apiVersion: opentelemetry.io/v1alpha1
+kind: Instrumentation
+metadata:
+  name: go-instrumentation
+  namespace: dynatrace
+spec:
+  exporter:
+    endpoint: http://dynatrace-collector-opentelemetry-collector.dynatrace.svc.cluster.local:4317
+  propagators:
+    - tracecontext
+    - baggage
+  sampler:
+    type: parentbased_traceidratio
+    argument: "1.0"
+  go:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+    # The webhook sets OTEL_GO_AUTO_TARGET_EXE per pod; if injection fails with
+    # "could not find target exe", set it explicitly via the pod annotation
+    # instrumentation.opentelemetry.io/otel-go-auto-target-exe: "/app/<binary-name>"

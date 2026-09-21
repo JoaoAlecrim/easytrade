@@ -1,0 +1,25 @@
+# Instrumentation CR for Java services (accountservice, contentcreator,
+# credit-card-order-service, engine, feature-flag-service, third-party-service).
+# Used in step 9 of docs/dynatrace-otel-auto-instrumentation.md
+apiVersion: opentelemetry.io/v1alpha1
+kind: Instrumentation
+metadata:
+  name: java-instrumentation
+  namespace: dynatrace
+spec:
+  exporter:
+    endpoint: http://dynatrace-collector-opentelemetry-collector.dynatrace.svc.cluster.local:4317
+  propagators:
+    - tracecontext
+    - baggage
+  sampler:
+    type: parentbased_traceidratio
+    argument: "1.0"
+  java:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi

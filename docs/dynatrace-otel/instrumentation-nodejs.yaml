@@ -1,0 +1,24 @@
+# Instrumentation CR for Node.js services (frontend, loadgen, offerservice).
+# Used in step 9 of docs/dynatrace-otel-auto-instrumentation.md
+apiVersion: opentelemetry.io/v1alpha1
+kind: Instrumentation
+metadata:
+  name: nodejs-instrumentation
+  namespace: dynatrace
+spec:
+  exporter:
+    endpoint: http://dynatrace-collector-opentelemetry-collector.dynatrace.svc.cluster.local:4317
+  propagators:
+    - tracecontext
+    - baggage
+  sampler:
+    type: parentbased_traceidratio
+    argument: "1.0"
+  nodejs:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
